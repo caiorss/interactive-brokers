@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings,RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module API.IB.Request where
 
@@ -27,8 +28,8 @@ ibMsg :: Int -> IBRequestType -> [Builder] -> ByteString
 ibMsg version reqtype builders = bMake sepC $ bEncode reqtype : intDec version : builders
 
 ibMsgConcat :: Int -> IBRequestType -> [[Builder]] -> ByteString
-ibMsgConcat version reqtype builders = ibMsg version reqtype $ concat builders   
-  
+ibMsgConcat version reqtype builders = ibMsg version reqtype $ concat builders
+
 -- -----------------------------------------------------------------------------
 -- Message Factory
 
@@ -38,37 +39,37 @@ createClientIdMsg clientid = BC.pack (show clientid) <> sepB
 createClientVersionMsg :: Int -> ByteString
 createClientVersionMsg cversion = BC.pack (show cversion) <> sepB
 
-createMsg :: IBRequest -> Maybe ByteString
-createMsg request = case request of 
-  (RequestMarketData sv tid c gtl ss) -> createRequestMarketDataMsg sv tid c gtl ss
-  (CancelMarketData sv tid) -> createCancelMarketDataMsg sv tid
-  (PlaceOrder sv oid c o) -> createPlaceOrderMsg sv oid c o
-  (CancelOrder sv oid) -> createCancelOrderMsg sv oid 
-  (RequestOpenOrders sv) -> createRequestOpenOrdersMsg sv
-  (RequestAccountData sv sub ac) -> createRequestAccountDataMsg sv sub ac
-  (RequestExecutions sv rid ef) -> createRequestExecutionsMsg sv rid ef 
-  (RequestIds sv n) -> createRequestIdsMsg sv n
-  (RequestContractData sv rid c) -> createRequestContractDataMsg sv rid c
-  (RequestAutoOpenOrders sv ab) -> createRequestAutoOpenOrdersMsg sv ab
-  (RequestAllOpenOrders sv) -> createRequestAllOpenOrdersMsg sv
-  (RequestManagedAccounts sv) -> createRequestManagedAccountsMsg sv
-  (RequestHistoricalData sv tid c dt dur bs bb rth fd) -> createRequestHistoricalDataMsg sv tid c dt dur bs bb rth fd
-  (CancelHistoricalData sv tid) -> createCancelHistoricalDataMsg sv tid
-  (RequestCurrentTime sv) -> createRequestCurrentTimeMsg sv
-  (RequestRealTimeBars sv tid c bs bb rth) -> createRequestRealTimeBarsMsg sv tid c bs bb rth
-  (CancelRealTimeBars sv tid) -> createCancelRealTimeBarsMsg sv tid
-  (RequestGlobalCancel sv) -> createRequestGlobalCancelMsg sv
-  (RequestMarketDataType sv mdt) -> createRequestMarketDataTypeMsg sv mdt
-  (RequestPositions sv) -> createRequestPositionsMsg sv
-  (RequestAccountSummary sv rid g tl) -> createRequestAccountSummaryMsg sv rid g tl
-  (CancelAccountSummary sv rid) -> createCancelAccountSummaryMsg sv rid
-  (CancelPositions sv) -> createCancelPositionsMsg sv
+createMsg :: Int -> IBRequest -> ByteString
+createMsg sv request = case request of
+  (RequestMarketData tid c gtl ss) -> createRequestMarketDataMsg sv tid c gtl ss
+  (CancelMarketData tid) -> createCancelMarketDataMsg sv tid
+  (PlaceOrder oid c o) -> createPlaceOrderMsg sv oid c o
+  (CancelOrder oid) -> createCancelOrderMsg sv oid
+  (RequestOpenOrders) -> createRequestOpenOrdersMsg sv
+  (RequestAccountData sub ac) -> createRequestAccountDataMsg sv sub ac
+  (RequestExecutions rid ef) -> createRequestExecutionsMsg sv rid ef
+  (RequestIds n) -> createRequestIdsMsg sv n
+  (RequestContractData rid c) -> createRequestContractDataMsg sv rid c
+  (RequestAutoOpenOrders ab) -> createRequestAutoOpenOrdersMsg sv ab
+  (RequestAllOpenOrders) -> createRequestAllOpenOrdersMsg sv
+  (RequestManagedAccounts ) -> createRequestManagedAccountsMsg sv
+  (RequestHistoricalData tid c dt dur bs bb rth fd) -> createRequestHistoricalDataMsg sv tid c dt dur bs bb rth fd
+  (CancelHistoricalData tid) -> createCancelHistoricalDataMsg sv tid
+  (RequestCurrentTime) -> createRequestCurrentTimeMsg sv
+  (RequestRealTimeBars tid c bs bb rth) -> createRequestRealTimeBarsMsg sv tid c bs bb rth
+  (CancelRealTimeBars tid) -> createCancelRealTimeBarsMsg sv tid
+  (RequestGlobalCancel) -> createRequestGlobalCancelMsg sv
+  (RequestMarketDataType mdt) -> createRequestMarketDataTypeMsg sv mdt
+  (RequestPositions) -> createRequestPositionsMsg sv
+  (RequestAccountSummary rid g tl) -> createRequestAccountSummaryMsg sv rid g tl
+  (CancelAccountSummary rid) -> createCancelAccountSummaryMsg sv rid
+  (CancelPositions) -> createCancelPositionsMsg sv
 
 -- -----------------------------------------------------------------------------
 
-createRequestMarketDataMsg :: Int -> Int -> IBContract -> [IBGenericTickType] -> Bool -> Maybe ByteString
-createRequestMarketDataMsg sversion tickerid IBContract{..} genticktypes snapshot = 
-  return $ ibMsgConcat 10 ReqMktDataT
+createRequestMarketDataMsg :: Int -> Int -> IBContract -> [IBGenericTickType] -> Bool -> ByteString
+createRequestMarketDataMsg sversion tickerid IBContract{..} genticktypes snapshot =
+  ibMsgConcat 10 ReqMktDataT
     [ [ intDec tickerid
       , intDec _conId
       , stringUtf8 _conSymbol
@@ -84,21 +85,21 @@ createRequestMarketDataMsg sversion tickerid IBContract{..} genticktypes snapsho
       ]
     , [ stringUtf8 _conTradingClass | sversion >= minServerVersionTradingClass]
     , [ stringUtf8 "0"
-      , bSep ',' (map bEncode genticktypes) 
+      , bSep ',' (map bEncode genticktypes)
       , intDec $ boolBinary snapshot
       ]
     ]
 
 -- -----------------------------------------------------------------------------
 
-createCancelMarketDataMsg :: Int -> Int -> Maybe ByteString
-createCancelMarketDataMsg _ tickerid = return $ ibMsg 1 CancelMktDataT [intDec tickerid]
+createCancelMarketDataMsg :: Int -> Int -> ByteString
+createCancelMarketDataMsg _ tickerid = ibMsg 1 CancelMktDataT [intDec tickerid]
 
 -- -----------------------------------------------------------------------------
 
-createPlaceOrderMsg :: Int -> ByteString -> IBContract -> IBOrder -> Maybe ByteString
+createPlaceOrderMsg :: Int -> ByteString -> IBContract -> IBOrder -> ByteString
 createPlaceOrderMsg sversion orderid IBContract{..} IBOrder{..} =
-  return $ ibMsgConcat 40 PlaceOrderT
+  ibMsgConcat 40 PlaceOrderT
     [ [ byteString orderid
       , intDec _conId
       , stringUtf8 _conSymbol
@@ -146,7 +147,7 @@ createPlaceOrderMsg sversion orderid IBContract{..} IBOrder{..} =
           if _conComboLegsCount > 0 then
             intDec _conComboLegsCount :
             concatMap
-              (\l ->   
+              (\l ->
                 [ intDec $ _comConId l
                 , intDec $ _comRatio l
                 , stringUtf8 $ _comAction l
@@ -156,7 +157,7 @@ createPlaceOrderMsg sversion orderid IBContract{..} IBOrder{..} =
                 , stringUtf8 $ _comDesignatedLocation l
                 , intDec $ _comExemptCode l
                 ])
-              _conComboLegs 
+              _conComboLegs
           else
             [intDec 0]
           <>
@@ -176,7 +177,7 @@ createPlaceOrderMsg sversion orderid IBContract{..} IBOrder{..} =
           else
             [intDec 0]
       else
-        [], 
+        [],
       [ bEmpty
       , doubleDec _orderDiscretionaryAmt
       , maybe bEmpty stringUtf8 _orderGoodAfterTime
@@ -246,19 +247,19 @@ createPlaceOrderMsg sversion orderid IBContract{..} IBOrder{..} =
         []
     , [ maybe bEmpty bEncode _orderHedgeType
       ]
-    , if isJust _orderHedgeType then 
-        maybe [bEmpty] ((:[]) . stringUtf8) _orderHedgeParam 
-      else 
+    , if isJust _orderHedgeType then
+        maybe [bEmpty] ((:[]) . stringUtf8) _orderHedgeParam
+      else
         []
-    , [ intDec $ boolBinary _orderOptOutSmartRouting, 
+    , [ intDec $ boolBinary _orderOptOutSmartRouting,
         stringUtf8 _orderClearingAccount,
         stringUtf8 _orderClearingIntent,
         intDec $ boolBinary _orderNotHeld
       ]
     , if isJust _conUnderComp then
-        let 
+        let
           uc = fromJust _conUnderComp
-        in 
+        in
           [ intDec $ _ucConId uc
           , doubleDec $ _ucDelta uc
           , doubleDec $ _ucPrice uc
@@ -271,32 +272,32 @@ createPlaceOrderMsg sversion orderid IBContract{..} IBOrder{..} =
         intDec (Map.size _orderAlgoParams) : concatMap (\(k,v) -> map stringUtf8 [k,v]) (Map.toList _orderAlgoParams)
       else
         []
-    , [ intDec $ boolBinary _orderWhatIf 
+    , [ intDec $ boolBinary _orderWhatIf
       ]
     ]
 
 -- -----------------------------------------------------------------------------
 
-createCancelOrderMsg :: Int -> ByteString -> Maybe ByteString
-createCancelOrderMsg _ orderid = return $ ibMsg 1 CancelOrderT [byteString orderid]
+createCancelOrderMsg :: Int -> ByteString -> ByteString
+createCancelOrderMsg _ orderid = ibMsg 1 CancelOrderT [byteString orderid]
 
 -- -----------------------------------------------------------------------------
 
-createRequestOpenOrdersMsg :: Int -> Maybe ByteString
-createRequestOpenOrdersMsg _ = return $ ibMsg 1 ReqOpenOrdersT []
+createRequestOpenOrdersMsg :: Int -> ByteString
+createRequestOpenOrdersMsg _ = ibMsg 1 ReqOpenOrdersT []
 
 -- -----------------------------------------------------------------------------
 
-createRequestAccountDataMsg :: Int -> Bool -> String -> Maybe ByteString
-createRequestAccountDataMsg sversion subscribe accountcode = 
-  return $ ibMsg 2 ReqAccountDataT $ 
+createRequestAccountDataMsg :: Int -> Bool -> String -> ByteString
+createRequestAccountDataMsg sversion subscribe accountcode =
+  ibMsg 2 ReqAccountDataT $
     intDec (boolBinary subscribe) : [stringUtf8 accountcode | sversion >= 9]
 
 -- -----------------------------------------------------------------------------
 
-createRequestExecutionsMsg :: Int -> Int -> IBExecutionFilter -> Maybe ByteString
+createRequestExecutionsMsg :: Int -> Int -> IBExecutionFilter -> ByteString
 createRequestExecutionsMsg _ requestid IBExecutionFilter{..} =
-  return $ ibMsg 3 ReqExecutionsT 
+  ibMsg 3 ReqExecutionsT
     [ intDec requestid
     , intDec _efClientId
     , stringUtf8 _efAcctCode
@@ -309,14 +310,14 @@ createRequestExecutionsMsg _ requestid IBExecutionFilter{..} =
 
 -- -----------------------------------------------------------------------------
 
-createRequestIdsMsg :: Int -> Int -> Maybe ByteString
-createRequestIdsMsg _ numids = return $ ibMsg 1 ReqIdsT [intDec numids]
+createRequestIdsMsg :: Int -> Int -> ByteString
+createRequestIdsMsg _ numids = ibMsg 1 ReqIdsT [intDec numids]
 
 -- -----------------------------------------------------------------------------
 
-createRequestContractDataMsg :: Int -> Int -> IBContract -> Maybe ByteString
+createRequestContractDataMsg :: Int -> Int -> IBContract -> ByteString
 createRequestContractDataMsg sversion requestid IBContract{..} =
-  return $ ibMsgConcat 7 ReqContractDataT
+  ibMsgConcat 7 ReqContractDataT
     [ [ intDec requestid
       , intDec _conId
       , stringUtf8 _conSymbol
@@ -339,28 +340,28 @@ createRequestContractDataMsg sversion requestid IBContract{..} =
 
 -- -----------------------------------------------------------------------------
 
-createRequestAutoOpenOrdersMsg :: Int -> Bool -> Maybe ByteString
-createRequestAutoOpenOrdersMsg _ autobind = 
-  return $ ibMsg 1 ReqAutoOpenOrdersT [intDec $ boolBinary autobind]
+createRequestAutoOpenOrdersMsg :: Int -> Bool -> ByteString
+createRequestAutoOpenOrdersMsg _ autobind =
+  ibMsg 1 ReqAutoOpenOrdersT [intDec $ boolBinary autobind]
 
 -- -----------------------------------------------------------------------------
 
-createRequestAllOpenOrdersMsg :: Int -> Maybe ByteString
-createRequestAllOpenOrdersMsg _ = return $ ibMsg 1 ReqAllOpenOrdersT []
+createRequestAllOpenOrdersMsg :: Int -> ByteString
+createRequestAllOpenOrdersMsg _ = ibMsg 1 ReqAllOpenOrdersT []
 
 -- -----------------------------------------------------------------------------
 
-createRequestManagedAccountsMsg :: Int -> Maybe ByteString
-createRequestManagedAccountsMsg _ = return $ ibMsg 1 ReqManagedAccountsT []
+createRequestManagedAccountsMsg :: Int -> ByteString
+createRequestManagedAccountsMsg _ = ibMsg 1 ReqManagedAccountsT []
 
 -- -----------------------------------------------------------------------------
 
-createRequestHistoricalDataMsg :: Int -> Int -> IBContract -> LocalTime -> IBDuration -> Int -> IBBarBasis -> Bool -> IBFormatDate -> Maybe ByteString
-createRequestHistoricalDataMsg sversion tickerid IBContract{..} enddatetime duration@(IBDuration i u) barsize barbasis userth formatdate 
-  | i <= 0 = Nothing
-  | i > 1 && u == Y = Nothing
-  | barsize `notElem` [1,5,15,30,60,120,180,300,900,1800,3600,86400] = Nothing 
-  | otherwise = return $ ibMsgConcat 5 ReqHistoricalDataT
+createRequestHistoricalDataMsg :: Int -> Int -> IBContract -> LocalTime -> IBDuration -> Int -> IBBarBasis -> Bool -> IBFormatDate -> ByteString
+createRequestHistoricalDataMsg sversion tickerid IBContract{..} enddatetime duration@(IBDuration i u) barsize barbasis userth formatdate
+  | i <= 0 = error "invalid duration in RequestHistoricalDataMsg."
+  | i > 1 && u == Y = error "invalid duration in RequestHistoricalDataMsg."
+  | barsize `notElem` [1,5,15,30,60,120,180,300,900,1800,3600,86400] = error "invalid barsize in RequestHistoricalDataMsg."
+  | otherwise = ibMsgConcat 5 ReqHistoricalDataT
       [ [ intDec tickerid
         ]
       , [ intDec _conId | sversion >= minServerVersionTradingClass]
@@ -377,8 +378,8 @@ createRequestHistoricalDataMsg sversion tickerid IBContract{..} enddatetime dura
         ]
       , [ stringUtf8 _conTradingClass | sversion >= minServerVersionTradingClass]
       , [ intDec $ boolBinary _conIncludeExpired,
-          stringUtf8 $ formatTime defaultTimeLocale "%Y%m%d %H:%M:%S" enddatetime, 
-          stringUtf8 $ formatSeconds barsize, 
+          stringUtf8 $ formatTime defaultTimeLocale "%Y%m%d %H:%M:%S" enddatetime,
+          stringUtf8 $ formatSeconds barsize,
           bEncode duration,
           intDec $ boolBinary userth,
           bEncode barbasis,
@@ -388,22 +389,21 @@ createRequestHistoricalDataMsg sversion tickerid IBContract{..} enddatetime dura
 
 -- -----------------------------------------------------------------------------
 
-createCancelHistoricalDataMsg :: Int -> Int -> Maybe ByteString
-createCancelHistoricalDataMsg _ tickerid = 
-  return $ ibMsg 1  CancelHistoricalDataT [intDec tickerid]
+createCancelHistoricalDataMsg :: Int -> Int -> ByteString
+createCancelHistoricalDataMsg _ tickerid =
+  ibMsg 1  CancelHistoricalDataT [intDec tickerid]
 
 -- -----------------------------------------------------------------------------
 
-createRequestCurrentTimeMsg :: Int -> Maybe ByteString
-createRequestCurrentTimeMsg _ = return $ ibMsg 1 ReqCurrentTimeT []
+createRequestCurrentTimeMsg :: Int -> ByteString
+createRequestCurrentTimeMsg _ = ibMsg 1 ReqCurrentTimeT []
 
 -- -----------------------------------------------------------------------------
-
-createRequestRealTimeBarsMsg :: Int -> Int -> IBContract -> Int -> IBBarBasis -> Bool -> Maybe ByteString
-createRequestRealTimeBarsMsg sversion tickerid IBContract{..} barsize barbasis userth  
-  | barsize /= 5 = Nothing
-  | barbasis `notElem` [BarBasisTrades,BarBasisBid,BarBasisAsk,BarBasisMidpoint] = Nothing 
-  | otherwise = return $ ibMsgConcat 2 ReqRealTimeBarsT
+createRequestRealTimeBarsMsg :: Int -> Int -> IBContract -> Int -> IBBarBasis -> Bool -> ByteString
+createRequestRealTimeBarsMsg sversion tickerid IBContract{..} barsize barbasis userth
+  | barsize /= 5 = error "invalid barsize in RequestRealTimeBarMsg."
+  | barbasis `notElem` [BarBasisTrades,BarBasisBid,BarBasisAsk,BarBasisMidpoint] = error "invalid barbasis in RequestRealTimeBarMsg."
+  | otherwise = ibMsgConcat 2 ReqRealTimeBarsT
       [ [ intDec tickerid
         ]
       , [ intDec _conId | sversion >= minServerVersionTradingClass
@@ -429,31 +429,31 @@ createRequestRealTimeBarsMsg sversion tickerid IBContract{..} barsize barbasis u
 
 -- -----------------------------------------------------------------------------
 
-createCancelRealTimeBarsMsg :: Int -> Int -> Maybe ByteString
-createCancelRealTimeBarsMsg _ tickerid = return $ ibMsg 1 CancelRealTimeBarsT [intDec tickerid]
+createCancelRealTimeBarsMsg :: Int -> Int -> ByteString
+createCancelRealTimeBarsMsg _ tickerid = ibMsg 1 CancelRealTimeBarsT [intDec tickerid]
 
 -- -----------------------------------------------------------------------------
 
-createRequestGlobalCancelMsg :: Int -> Maybe ByteString
-createRequestGlobalCancelMsg _ = return $ ibMsg 1 ReqGlobalCancelT []
+createRequestGlobalCancelMsg :: Int -> ByteString
+createRequestGlobalCancelMsg _ = ibMsg 1 ReqGlobalCancelT []
 
 -- -----------------------------------------------------------------------------
 
-createRequestMarketDataTypeMsg :: Int -> IBMarketDataType -> Maybe ByteString
-createRequestMarketDataTypeMsg _ marketdatatype = 
-  return $ ibMsg 1 ReqMarketDataTypeT [bEncode marketdatatype]
+createRequestMarketDataTypeMsg :: Int -> IBMarketDataType -> ByteString
+createRequestMarketDataTypeMsg _ marketdatatype =
+  ibMsg 1 ReqMarketDataTypeT [bEncode marketdatatype]
 
 -- -----------------------------------------------------------------------------
 
-createRequestPositionsMsg :: Int -> Maybe ByteString
-createRequestPositionsMsg _ = return $ ibMsg 1 ReqPositionsT []
+createRequestPositionsMsg :: Int -> ByteString
+createRequestPositionsMsg _ = ibMsg 1 ReqPositionsT []
 
 -- -----------------------------------------------------------------------------
 
-createRequestAccountSummaryMsg :: Int -> Int -> IBGroup -> [IBTag] -> Maybe ByteString
-createRequestAccountSummaryMsg sversion reqid grp tags  
-  | sversion < minServerVersionAccountSummary = Nothing
-  | otherwise = return $ ibMsg 1 ReqAccountSummaryT
+createRequestAccountSummaryMsg :: Int -> Int -> IBGroup -> [IBTag] -> ByteString
+createRequestAccountSummaryMsg sversion reqid grp tags
+  | sversion < minServerVersionAccountSummary = error "invalid server version in RequestAccountSummaryMsg."
+  | otherwise = ibMsg 1 ReqAccountSummaryT
       [ intDec reqid
       , bEncode grp
       , bSep ',' (map bEncode tags)
@@ -461,29 +461,14 @@ createRequestAccountSummaryMsg sversion reqid grp tags
 
 -- -----------------------------------------------------------------------------
 
-createCancelAccountSummaryMsg :: Int -> Int -> Maybe ByteString
-createCancelAccountSummaryMsg sversion requestid 
-  | sversion < minServerVersionAccountSummary = Nothing
-  | otherwise = return $ ibMsg 1 CancelAccountSummaryT [intDec requestid]
+createCancelAccountSummaryMsg :: Int -> Int -> ByteString
+createCancelAccountSummaryMsg sversion requestid
+  | sversion < minServerVersionAccountSummary = error "invalid server version in CancelAccountSummaryMsg."
+  | otherwise = ibMsg 1 CancelAccountSummaryT [intDec requestid]
 
 -- -----------------------------------------------------------------------------
 
-createCancelPositionsMsg :: Int -> Maybe ByteString
-createCancelPositionsMsg sversion 
-  | sversion < minServerVersionAccountSummary = Nothing
-  | otherwise = return $ ibMsg 1 CancelPositionsT []
-
-
-
-
-  
-
-
-
-
-
-
-
-
-
-
+createCancelPositionsMsg :: Int -> ByteString
+createCancelPositionsMsg sversion
+  | sversion < minServerVersionAccountSummary = error "invalid server version in CancelPositionsMsg."
+  | otherwise = ibMsg 1 CancelPositionsT []

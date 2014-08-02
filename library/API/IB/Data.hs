@@ -1,18 +1,19 @@
-{-# LANGUAGE OverloadedStrings,TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module API.IB.Data where
 
 import           Control.Applicative
-import           Control.Arrow                       (second)
-import           Control.Lens                        (makeLenses)
+import           Control.Lens                     (makeLenses)
 import           Control.Monad
 import           Currency
 import           Data.Attoparsec.ByteString.Char8
-import           Data.ByteString                     (ByteString)
-import qualified Data.IntMap                         as IntMap (lookup)
-import           Data.List.Split                     (splitOn)
-import           Data.Map                            (Map)
-import qualified Data.Map                            as Map (empty, fromList, lookup)
+import           Data.ByteString                  (ByteString)
+import qualified Data.IntMap                      as IntMap (lookup)
+import           Data.List.Split                  (splitOn)
+import           Data.Map                         (Map)
+import qualified Data.Map                         as Map (empty, fromList,
+                                                          lookup)
 import           Data.Maybe
 import           Data.Time
 import           Data.Time.Zones
@@ -25,7 +26,7 @@ import           API.IB.Util
 -- -----------------------------------------------------------------------------
 -- Types
 
-type IBTagValues = Map String String 
+type IBTagValues = Map String String
 
 parseTagValues :: Parser IBTagValues
 parseTagValues = do
@@ -36,209 +37,179 @@ parseTagValues = do
 -- Request
 
 data IBRequest =
-    RequestMarketData 
-    { _reqServerVersion :: Int
-    , _reqTickerId :: Int 
-    , _reqContract :: IBContract
-    , _reqTickerList :: [IBGenericTickType]
+    RequestMarketData
+    { _reqTickerId     :: Int
+    , _reqContract     :: IBContract
+    , _reqTickerList   :: [IBGenericTickType]
     , _reqSnapshotFlag :: Bool
-    } 
-  | CancelMarketData
-    { _reqServerVersion :: Int
-    , _reqTickerId :: Int
     }
-  | PlaceOrder 
-    { _reqServerVersion :: Int
-    , _reqOrderId :: ByteString 
+  | CancelMarketData
+    {_reqTickerId :: Int
+    }
+  | PlaceOrder
+    { _reqOrderId  :: ByteString
     , _reqContract :: IBContract
-    , _reqOrder :: IBOrder
+    , _reqOrder    :: IBOrder
     }
   | CancelOrder
-    { _reqServerVersion :: Int 
-    , _reqOrderId :: ByteString
+    { _reqOrderId :: ByteString
     }
-  | RequestOpenOrders 
-    { _reqServerVersion :: Int
+  | RequestOpenOrders
+  | RequestAccountData
+    { _reqSubscribe :: Bool
+    , _reqAccount   :: String
     }
-  | RequestAccountData 
-    { _reqServerVersion :: Int
-    , _reqSubscribe :: Bool 
-    , _reqAccount :: String
-    }
-  | RequestExecutions 
-    { _reqServerVersion :: Int
-    , _reqRequestId :: Int 
+  | RequestExecutions
+    { _reqRequestId       :: Int
     , _reqExecutionFilter :: IBExecutionFilter
     }
-  | RequestIds 
-    { _reqServerVersion :: Int 
-    , _reqNumIds :: Int
+  | RequestIds
+    { _reqNumIds :: Int
     }
-  | RequestContractData 
-    { _reqServerVersion :: Int
-    , _reqRequestId :: Int 
-    , _reqContract :: IBContract
+  | RequestContractData
+    { _reqRequestId :: Int
+    , _reqContract  :: IBContract
     }
-  | RequestAutoOpenOrders 
-    { _reqServerVersion :: Int
-    , _reqAutoBind :: Bool
+  | RequestAutoOpenOrders
+    { _reqAutoBind :: Bool
     }
-  | RequestAllOpenOrders 
-    { _reqServerVersion :: Int
+  | RequestAllOpenOrders
+  | RequestManagedAccounts
+  | RequestHistoricalData
+    { _reqTickerId            :: Int
+    , _reqContract            :: IBContract
+    , _reqEndDateTime         :: LocalTime
+    , _reqDuration            :: IBDuration
+    , _reqBarSize             :: Int
+    , _reqBarBasis            :: IBBarBasis
+    , _reqRegularTradingHours :: Bool
+    , _reqFormatDate          :: IBFormatDate
     }
-  | RequestManagedAccounts 
-    { _reqServerVersion :: Int
+  | CancelHistoricalData
+    { _reqTickerId :: Int
     }
-  | RequestHistoricalData 
-    { _reqServerVersion :: Int
-    , _reqTickerId :: Int 
-    , _reqContract :: IBContract 
-    , _reqEndDateTime :: LocalTime 
-    , _reqDuration :: IBDuration 
-    , _reqBarSize :: Int 
-    , _reqBarBasis :: IBBarBasis 
-    , _reqRegularTradingHours :: Bool 
-    , _reqFormatDate :: IBFormatDate
-    }
-  | CancelHistoricalData 
-    { _reqServerVersion :: Int
-    , _reqTickerId :: Int
-    }
-  | RequestCurrentTime 
-    { _reqServerVersion :: Int
-    }
-  | RequestRealTimeBars 
-    { _reqServerVersion :: Int
-    , _reqTickerId :: Int 
-    , _reqContract :: IBContract 
-    , _reqBarSize :: Int 
-    , _reqBarBasis :: IBBarBasis 
+  | RequestCurrentTime
+  | RequestRealTimeBars
+    { _reqTickerId            :: Int
+    , _reqContract            :: IBContract
+    , _reqBarSize             :: Int
+    , _reqBarBasis            :: IBBarBasis
     , _reqRegularTradingHours :: Bool
     }
-  | CancelRealTimeBars 
-    { _reqServerVersion :: Int 
-    , _reqTickerId :: Int
+  | CancelRealTimeBars
+    { _reqTickerId :: Int
     }
-  | RequestGlobalCancel 
-    { _reqServerVersion :: Int
+  | RequestGlobalCancel
+  | RequestMarketDataType
+    { _reqMarketDataType :: IBMarketDataType
     }
-  | RequestMarketDataType 
-    { _reqServerVersion :: Int
-    , _reqMarketDataType :: IBMarketDataType
+  | RequestPositions
+  | RequestAccountSummary
+    { _reqRequestId :: Int
+    , _reqGroup     :: IBGroup
+    , _reqTags      :: IBTags
     }
-  | RequestPositions 
-    { _reqServerVersion :: Int
+  | CancelAccountSummary
+    { _req :: Int
     }
-  | RequestAccountSummary 
-    { _reqServerVersion :: Int
-    , _reqRequestId :: Int 
-    , _reqGroup :: IBGroup 
-    , _reqTags :: IBTags
-    }
-  | CancelAccountSummary 
-    { _reqServerVersion :: Int 
-    , _req :: Int
-    }
-  | CancelPositions 
-    { _reqServerVersion :: Int
-    }
+  | CancelPositions
   deriving Show
 
 -- -----------------------------------------------------------------------------
 -- Response
 
-data IBHistoricalDataItem = IBHistoricalDataItem 
-    { _hdiDate :: Day
-    , _hdiTime :: TimeOfDay
-    , _hdiOpen :: Double 
-    , _hdiHigh :: Double 
-    , _hdiLow :: Double 
-    , _hdiClose :: Double 
-    , _hdiVolume :: Int 
-    , _hdiWAP :: Double 
-    , _hdiHasGaps :: Bool 
+data IBHistoricalDataItem = IBHistoricalDataItem
+    { _hdiDate     :: Day
+    , _hdiTime     :: TimeOfDay
+    , _hdiOpen     :: Double
+    , _hdiHigh     :: Double
+    , _hdiLow      :: Double
+    , _hdiClose    :: Double
+    , _hdiVolume   :: Int
+    , _hdiWAP      :: Double
+    , _hdiHasGaps  :: Bool
     , _hdiBarCount :: Int
-    } 
+    }
     deriving Show
 
-data IBResponse = 
-    Connection 
-    { _connServerVersion :: Int
-    , _connServerTime :: LocalTime
+data IBResponse =
+    Connection
+    { _connServerVersion      :: Int
+    , _connServerTime         :: LocalTime
     , _connServerTimeZoneDesc :: String
-    , _connServerTimeZone :: Maybe TZ
+    , _connServerTimeZone     :: Maybe TZ
     }
-  | TickPrice 
-    { _tpTickerId :: Int
-    , _tpTickType :: IBTickType 
-    , _tpPrice :: Double
+  | TickPrice
+    { _tpTickerId       :: Int
+    , _tpTickType       :: IBTickType
+    , _tpPrice          :: Double
     , _tpCanAutoExecute :: Bool
     }
-  | TickSize 
+  | TickSize
     { _tsTickerId :: Int
-    , _tsTickType :: IBTickType 
-    , _tsSize :: Int
+    , _tsTickType :: IBTickType
+    , _tsSize     :: Int
     }
-  | OrderStatus 
-    { _osOrderId :: ByteString
-    , _osOrderStatus :: IBOrderStatus
-    , _osFilled :: Int
-    , _osRemaining :: Int
-    , _osAvgFillPrice :: Double 
-    , _osPermId :: Int
-    , _osParentId :: Int 
+  | OrderStatus
+    { _osOrderId       :: ByteString
+    , _osOrderStatus   :: IBOrderStatus
+    , _osFilled        :: Int
+    , _osRemaining     :: Int
+    , _osAvgFillPrice  :: Double
+    , _osPermId        :: Int
+    , _osParentId      :: Int
     , _osLastFillPrice :: Double
-    , _osClientId :: Int
-    , _osWhyHeld :: IBOrderWhyHeld
-    } 
-  | Error 
-    { _errId :: Int 
-    , _errCode :: Int 
+    , _osClientId      :: Int
+    , _osWhyHeld       :: IBOrderWhyHeld
+    }
+  | Error
+    { _errId   :: Int
+    , _errCode :: Int
     , _errDesc :: String
     }
-  | OpenOrder 
-    { _ooOrderId :: ByteString
-    , _ooContract :: IBContract
-    , _ooOrder :: IBOrder
+  | OpenOrder
+    { _ooOrderId    :: ByteString
+    , _ooContract   :: IBContract
+    , _ooOrder      :: IBOrder
     , _ooOrderState :: IBOrderState
     }
   | HistoricalData
     { _hdRequestId :: Int
-    , _hdItems :: [IBHistoricalDataItem]
+    , _hdItems     :: [IBHistoricalDataItem]
     }
   | RealTimeBar
-    { _rtbReqId :: Int
-    , _rtbTime :: UTCTime -- Int
-    , _rtbOpen :: Double
-    , _rtbHigh :: Double
-    , _rtbLow :: Double
-    , _rtbClose :: Double
+    { _rtbReqId  :: Int
+    , _rtbTime   :: UTCTime -- Int
+    , _rtbOpen   :: Double
+    , _rtbHigh   :: Double
+    , _rtbLow    :: Double
+    , _rtbClose  :: Double
     , _rtbVolume :: Int
-    , _rtbWAP :: Double
-    , _rtbCount :: Int
-    } 
-  | NextValidId 
+    , _rtbWAP    :: Double
+    , _rtbCount  :: Int
+    }
+  | NextValidId
     { _nvId :: Int
-    } 
+    }
   | ContractData
-    { _cdReqId :: Int
+    { _cdReqId           :: Int
     , _cdContractDetails :: IBContractDetails
     }
-  | ContractDataEnd 
+  | ContractDataEnd
     { _cdReqId :: Int
     }
   | ManagedAccounts
     { _maAccounts :: [String]
     }
-  | TickGeneric 
+  | TickGeneric
     { _tgTickerId :: Int
     , _tgTickType :: IBTickType
-    , _tgValue :: Double
+    , _tgValue    :: Double
     }
   | TickString
     { _tsTickerId :: Int
     , _tsTickType :: IBTickType
-    , _tsValue :: String
+    , _tsValue    :: String
     }
   | TickTime
     { _tsTickerId :: Int
@@ -249,17 +220,17 @@ data IBResponse =
     { _ctDateTime :: UTCTime
     }
   | Position
-    { _posAccount :: String
+    { _posAccount  :: String
     , _posContract :: IBContract
     , _posPosition :: Int
-    , _posAvgCost :: Double
+    , _posAvgCost  :: Double
     }
   | PositionEnd
-  | AccountSummary 
-    { _asReqId :: Int
-    , _asAccount :: String
-    , _asTag :: IBTag
-    , _asValue :: String
+  | AccountSummary
+    { _asReqId    :: Int
+    , _asAccount  :: String
+    , _asTag      :: IBTag
+    , _asValue    :: String
     , _asCurrency :: Currency
     }
   | AccountSummaryEnd
@@ -267,53 +238,52 @@ data IBResponse =
     }
   | OpenOrderEnd
   | AccountValue
-    { _avTag :: IBTag
-    , _avValue :: String
+    { _avTag      :: IBTag
+    , _avValue    :: String
     , _avCurrency :: Maybe Currency
-    , _avAccount :: ByteString
+    , _avAccount  :: ByteString
     }
   | PortfolioValue
-    { _pvContract :: IBContract
-    , _pvPosition :: Int 
-    , _pvMarketPrice :: Double
-    , _pvMarketValue :: Double 
-    , _pvAverageCost :: Double 
-    , _pvUnrealisedPnL :: Double 
-    , _pvRealisedPnL :: Double 
-    , _pvAccount :: String
+    { _pvContract      :: IBContract
+    , _pvPosition      :: Int
+    , _pvMarketPrice   :: Double
+    , _pvMarketValue   :: Double
+    , _pvAverageCost   :: Double
+    , _pvUnrealisedPnL :: Double
+    , _pvRealisedPnL   :: Double
+    , _pvAccount       :: String
     }
-  | AccountUpdateTime 
+  | AccountUpdateTime
     { _acUpdateTime :: TimeOfDay
     }
-  | ExecutionData 
-    { _exReqId :: Int
-    , _exContract :: IBContract 
+  | ExecutionData
+    { _exReqId     :: Int
+    , _exContract  :: IBContract
     , _exExecution :: IBExecution
     }
   | ExecutionDataEnd
     { _exReqId :: Int
     }
-  | TickSnapshotEnd 
+  | TickSnapshotEnd
     { _tssReqId :: Int
     }
   | MarketDataType
-    { _mdtReqId :: Int
+    { _mdtReqId          :: Int
     , _mdtMarketDataType :: IBMarketDataType
     }
-  | CommissionReport 
+  | CommissionReport
     { _crCommissionReport :: IBCommissionReport
     }
-  | AccountDownloadEnd 
+  | AccountDownloadEnd
     { _acAccount :: String
     }
   deriving Show
 
-type IBResponses = Map IBResponseType (Parser [IBResponse])  
+type IBResponses = Map IBResponseType (Parser IBResponse)
 
 responses :: IBResponses
 responses = Map.fromList $
-  (TickPriceT,parseTickPrice) : 
-  map (second ((:[]) <$>)) [ 
+  [(TickPriceT,parseTickPrice),
   (TickSizeT,parseTickSize),
   (OrderStatusT,parseOrderStatus),
   (ErrorMessageT,parseError),
@@ -343,15 +313,15 @@ responses = Map.fromList $
   (AccountDownloadEndT,parseAccountDownloadEnd)
   ]
 
-parseIBResponses :: Parser [IBResponse]
-parseIBResponses  = 
-  parseTypedResponses <|> 
-  ((:[]) <$> parseConnection)
+parseIBResponse :: Parser IBResponse
+parseIBResponse  =
+  parseTypedResponses <|>
+  parseConnection
 
 parseResponseType :: Parser Int
 parseResponseType = parseIntField
 
-parseTypedResponses :: Parser [IBResponse]
+parseTypedResponses :: Parser IBResponse
 parseTypedResponses = do
   i <- parseResponseType
   case IntMap.lookup i ibResponseTypesM' of
@@ -369,24 +339,24 @@ parseConnection = do
 parseVersion :: Parser Int
 parseVersion = parseIntField
 
-parseTickPrice :: Parser [IBResponse]
+parseTickPrice :: Parser IBResponse
 parseTickPrice = do
   v <- parseVersion
-  tid <- parseIntField 
+  tid <- parseIntField
   tt <- parseField parseIBTickType
   -- let stt = Map.lookup tt $ Map.fromList [(Bid,BidSize),(Ask,AskSize),(Last,LastSize)]
-  p <- fromMaybe 0 <$> parseMaybeDoubleField 
+  p <- fromMaybe 0 <$> parseMaybeDoubleField
   _ <- if v >= 2 then parseIntField else return 0
   c <- if v >= 3 then parseBoolBinaryField else return False
-  return [TickPrice tid tt p c] -- (maybe [] (\stt' -> [TickSize tid stt' s]) stt) -- looks like a separate TickSize is always sent
+  return $ TickPrice tid tt p c -- (maybe [] (\stt' -> [TickSize tid stt' s]) stt) -- looks like a separate TickSize is always sent
 
 parseTickSize :: Parser IBResponse
 parseTickSize = do
   _ <- parseVersion
-  TickSize <$> 
+  TickSize <$>
     parseIntField <*>
     parseField parseIBTickType <*>
-    parseIntField 
+    parseIntField
 
 parseOrderStatus :: Parser IBResponse
 parseOrderStatus = do
@@ -401,7 +371,7 @@ parseOrderStatus = do
     (if v >= 3 then parseIntField else return 0) <*>
     (if v >= 4 then fromMaybe 0 <$> parseMaybeDoubleField else return 0.0) <*>
     (if v >= 5 then parseIntField else return 0) <*>
-    (if v >= 6 
+    (if v >= 6
       then parseField parseIBOrderWhyHeld <|> (return NoReason <* parseEmptyField)
       else return NoReason)
 
@@ -411,27 +381,27 @@ parseError = do
   Error <$>
     parseSignedIntField <*>
     parseIntField <*>
-    parseStringField 
+    parseStringField
 
 parseOpenOrder :: Parser IBResponse
 parseOpenOrder = do
   v <- parseVersion
   orderId' <- parseByteStringField
-  contract <- 
-    bConId newIBContract 
-      >>= bConSymbol 
-      >>= bConSecType 
-      >>= bConExpiry 
-      >>= bConStrike 
-      >>= bConRight 
+  contract <-
+    bConId newIBContract
+      >>= bConSymbol
+      >>= bConSecType
+      >>= bConExpiry
+      >>= bConStrike
+      >>= bConRight
       >>= when' (v>=32) bConMultiplier
       >>= bConExchange
-      >>= bConCurrency 
-      >>= bConLocalSymbol 
+      >>= bConCurrency
+      >>= bConLocalSymbol
       >>= when' (v>=32) bConTradingClass
   (order,contract') <- parseIBOrder contract
   orderState <- parseIBOrderState
-  return $ OpenOrder orderId' contract' order{_orderId = orderId'} orderState 
+  return $ OpenOrder orderId' contract' order{_orderId = orderId'} orderState
 
 parseNextValidId :: Parser IBResponse
 parseNextValidId = do
@@ -442,14 +412,14 @@ parseContractData :: Parser IBResponse
 parseContractData = do
   _ <- parseVersion
   reqId' <- parseIntField
-  contract' <- 
-    bConSymbol newIBContract 
-      >>= bConSecType 
-      >>= bConExpiry 
-      >>= bConStrike 
-      >>= bConRight 
-      >>= bConExchange 
-      >>= bConCurrency 
+  contract' <-
+    bConSymbol newIBContract
+      >>= bConSecType
+      >>= bConExpiry
+      >>= bConStrike
+      >>= bConRight
+      >>= bConExchange
+      >>= bConCurrency
       >>= bConLocalSymbol
   cdMarketName' <- parseStringField
   contract'' <- bConTradingClass contract' >>= bConId
@@ -472,8 +442,8 @@ parseContractData = do
   cdEvMultiplier' <- parseDoubleField'
   numSecIds <- parseIntField
   secIdsList <- count numSecIds $ (,) <$> parseStringField <*> parseStringField
-  let 
-    contractDetails' = newIBContractDetails 
+  let
+    contractDetails' = newIBContractDetails
       { _cdSummary = contract''''
       , _cdMarketName = cdMarketName'
       , _cdMinTick = cdMinTick'
@@ -498,8 +468,8 @@ parseContractData = do
 parseContractDataEnd :: Parser IBResponse
 parseContractDataEnd = do
   _ <- parseVersion
-  ContractDataEnd <$> 
-    parseIntField 
+  ContractDataEnd <$>
+    parseIntField
 
 parseManagedAccounts :: Parser IBResponse
 parseManagedAccounts = do
@@ -513,10 +483,10 @@ parseHistoricalData = do
   _ <- parseStringField
   _ <- parseStringField
   items <- parseIntField
-  HistoricalData reqid <$> count items parseHistoricalDataItem 
+  HistoricalData reqid <$> count items parseHistoricalDataItem
 
 parseHistoricalDataItem :: Parser IBHistoricalDataItem
-parseHistoricalDataItem = 
+parseHistoricalDataItem =
   IBHistoricalDataItem <$>
     (parseDayYYYYMMDD "" <* skipSpace) <*>
     (parseTimeOfDayHHMMSS ":" <* char sepC) <*>
@@ -532,7 +502,7 @@ parseHistoricalDataItem =
 parseTickGeneric :: Parser IBResponse
 parseTickGeneric = do
   _ <- parseVersion
-  TickGeneric <$> 
+  TickGeneric <$>
     parseIntField <*>
     parseField parseIBTickType <*>
     parseDoubleField
@@ -544,12 +514,12 @@ parseTickString = do
   t <- parseField parseIBTickType
   case t of
     LastTimestamp -> TickTime i t <$> parseUTCTimeField
-    _ -> TickString i t <$> parseStringField 
+    _ -> TickString i t <$> parseStringField
 
 parseCurrentTime :: Parser IBResponse
 parseCurrentTime = do
   _ <- parseVersion
-  CurrentTime <$> parseUTCTimeField 
+  CurrentTime <$> parseUTCTimeField
 
 parseRealTimeBar :: Parser IBResponse
 parseRealTimeBar = do
@@ -570,16 +540,16 @@ parsePosition = do
   v <- parseVersion
   Position <$>
     parseStringField <*>
-    (bConId newIBContract 
-      >>= bConSymbol 
-      >>= bConSecType 
-      >>= bConExpiry 
-      >>= bConStrike 
-      >>= bConRight 
-      >>= bConMultiplier 
-      >>= bConExchange 
-      >>= bConCurrency 
-      >>= bConLocalSymbol 
+    (bConId newIBContract
+      >>= bConSymbol
+      >>= bConSecType
+      >>= bConExpiry
+      >>= bConStrike
+      >>= bConRight
+      >>= bConMultiplier
+      >>= bConExchange
+      >>= bConCurrency
+      >>= bConLocalSymbol
       >>= when' (v>=2) bConTradingClass) <*>
     parseSignedIntField <*>
     if v >= 3 then parseDoubleField else return 0.0
@@ -608,7 +578,7 @@ parseAccountSummaryEnd = do
 parseOpenOrderEnd :: Parser IBResponse
 parseOpenOrderEnd = do
   _ <- parseVersion
-  return OpenOrderEnd    
+  return OpenOrderEnd
 
 parseAccountDownloadEnd :: Parser IBResponse
 parseAccountDownloadEnd = do
@@ -618,7 +588,7 @@ parseAccountDownloadEnd = do
 
 parseAccountValue :: Parser IBResponse
 parseAccountValue = do
-  v <- parseVersion  
+  v <- parseVersion
   AccountValue <$>
     parseField parseIBTag <*>
     parseStringField <*>
@@ -638,17 +608,17 @@ parsePortfolioValue = do
     (if v >= 3 then parseDoubleField  else return 0.0) <*>
     (if v >= 4 then parseStringField else return "")
     where
-    parseContract' v = 
+    parseContract' v =
       (if v>=6 then bConId newIBContract >>= bConSymbol else bConSymbol newIBContract)
-      >>= bConSecType 
-      >>= bConExpiry 
-      >>= bConStrike 
-      >>= bConRight 
+      >>= bConSecType
+      >>= bConExpiry
+      >>= bConStrike
+      >>= bConRight
       >>= when' (v>=7) (bConMultiplier >=> bConPrimaryExch)
-      >>= bConCurrency 
-      >>= bConLocalSymbol 
+      >>= bConCurrency
+      >>= bConLocalSymbol
       >>= when' (v>=8) bConTradingClass
-    
+
 parseAccountUpdateTime :: Parser IBResponse
 parseAccountUpdateTime = do
   _ <- parseVersion
@@ -660,17 +630,17 @@ parseExecutionData = do
   v <- parseVersion
   reqId' <- if v >= 7 then parseSignedIntField else return (-1)
   execOrderId' <- parseByteStringField
-  contract' <- 
+  contract' <-
     bConId newIBContract
-    >>= bConSymbol 
-    >>= bConSecType 
-    >>= bConExpiry 
-    >>= bConStrike 
-    >>= bConRight 
+    >>= bConSymbol
+    >>= bConSecType
+    >>= bConExpiry
+    >>= bConStrike
+    >>= bConRight
     >>= when' (v>=9) bConMultiplier
-    >>= bConExchange 
-    >>= bConCurrency 
-    >>= bConLocalSymbol 
+    >>= bConExchange
+    >>= bConCurrency
+    >>= bConLocalSymbol
     >>= when' (v >=10) bConTradingClass
   let execution = newIBExecution
   execId' <- parseByteStringField
@@ -679,7 +649,7 @@ parseExecutionData = do
   execTime' <- parseTimeOfDayHHMMSS ":" <* char sepC
   execAcctNumber' <- parseStringField
   execExchange' <- parseStringField
-  --execSide' <- parseStringField  
+  --execSide' <- parseStringField
   execSide' <- parseField parseIBExecutionSide
   execShares' <- parseIntField
   execPrice' <- parseDoubleField
@@ -691,7 +661,7 @@ parseExecutionData = do
   execOrderRef' <- if v >= 8 then parseStringField else return $ _execOrderRef execution
   execEvRule' <- if v >= 9 then parseStringField else return $ _execEvRule execution
   execEvMultiplier' <- if v >= 9 then parseDoubleField' else return $ _execEvMultiplier execution
-  let execution' = execution { 
+  let execution' = execution {
       _execOrderId = execOrderId'
     , _execClientId = execClientId'
     , _execId = execId'
@@ -723,45 +693,45 @@ parseTickSnapshotEnd = do
   TickSnapshotEnd <$>
     parseIntField
 
-parseMarketDataType :: Parser IBResponse  
-parseMarketDataType = do 
+parseMarketDataType :: Parser IBResponse
+parseMarketDataType = do
   _ <- parseVersion
   MarketDataType <$>
     parseIntField <*>
-    parseField parseIBMarketDataType 
+    parseField parseIBMarketDataType
 
 parseCommissionReport :: Parser IBResponse
 parseCommissionReport = do
   _ <- parseVersion
-  CommissionReport <$> 
+  CommissionReport <$>
     parseIBCommissionReport
 
 -- -----------------------------------------------------------------------------
 -- Contract
 
-data IBContract = IBContract 
-  { _conId :: Int
-  , _conSymbol :: String
-  , _conSecType :: IBSecurityType -- String 
-  , _conExpiry :: String
-  , _conStrike :: Double 
-  , _conRight :: String
-  , _conMultiplier :: String
-  , _conExchange :: String
-  , _conCurrency :: String
-  , _conLocalSymbol :: String
-  , _conTradingClass :: String
-  , _conPrimaryExch :: String  -- not SMART
-  , _conIncludeExpired :: Bool  -- False for orders
-  , _conSecIdType :: String  -- CUSIP;SEDOL;ISIN;RIC
-  , _conSecId :: String
+data IBContract = IBContract
+  { _conId               :: Int
+  , _conSymbol           :: String
+  , _conSecType          :: IBSecurityType -- String
+  , _conExpiry           :: String
+  , _conStrike           :: Double
+  , _conRight            :: String
+  , _conMultiplier       :: String
+  , _conExchange         :: String
+  , _conCurrency         :: String
+  , _conLocalSymbol      :: String
+  , _conTradingClass     :: String
+  , _conPrimaryExch      :: String  -- not SMART
+  , _conIncludeExpired   :: Bool  -- False for orders
+  , _conSecIdType        :: String  -- CUSIP;SEDOL;ISIN;RIC
+  , _conSecId            :: String
   , _conComboLegsDescrip :: String  -- received in open order version 14 and up for all combos
-  , _conComboLegs :: [IBComboLeg]
-  , _conUnderComp :: Maybe IBUnderComp  -- delta-neutral
+  , _conComboLegs        :: [IBComboLeg]
+  , _conUnderComp        :: Maybe IBUnderComp  -- delta-neutral
   } deriving Show
 
 newIBContract :: IBContract
-newIBContract = IBContract 
+newIBContract = IBContract
   { _conId = 0
   , _conSymbol = ""
   , _conSecType = IBForex
@@ -823,7 +793,7 @@ parseIBContractComboLegs contract = do
   conComboLegsDescrip' <- parseStringField
   conComboLegsCount <- parseIntField
   conComboLegs' <- replicateM conComboLegsCount parseIBComboLeg
-  return contract 
+  return contract
     { _conComboLegsDescrip = conComboLegsDescrip'
     , _conComboLegs = conComboLegs'
     }
@@ -831,7 +801,7 @@ parseIBContractComboLegs contract = do
 parseIBContractUnderComp :: IBContract -> Parser IBContract
 parseIBContractUnderComp contract = do
   under' <- parseBoolBinaryField
-  conUnderComp' <- if under' 
+  conUnderComp' <- if under'
     then
       Just <$> parseIBUnderComp
     else
@@ -841,20 +811,20 @@ parseIBContractUnderComp contract = do
 -- -----------------------------------------------------------------------------
 -- Combo leg
 
-data IBComboLeg = IBComboLeg 
-  { _comConId :: Int
-  , _comRatio :: Int
-  , _comAction :: String  -- BUY/SELL/SSHORT/SSHORTX
-  , _comExchange :: String
-  , _comOpenClose :: Int
+data IBComboLeg = IBComboLeg
+  { _comConId              :: Int
+  , _comRatio              :: Int
+  , _comAction             :: String  -- BUY/SELL/SSHORT/SSHORTX
+  , _comExchange           :: String
+  , _comOpenClose          :: Int
   -- for stock legs when doing short sale
-  , _comShortSaleSlot :: Int  -- 1 = clearing broker, 2 = third party
+  , _comShortSaleSlot      :: Int  -- 1 = clearing broker, 2 = third party
   , _comDesignatedLocation :: String
-  , _comExemptCode :: Int
+  , _comExemptCode         :: Int
   } deriving Show
 
 parseIBComboLeg :: Parser IBComboLeg
-parseIBComboLeg = 
+parseIBComboLeg =
   IBComboLeg <$>
     parseIntField <*>
     parseIntField <*>
@@ -863,19 +833,19 @@ parseIBComboLeg =
     parseIntField <*>
     parseIntField <*>
     parseStringField <*>
-    parseIntField   
+    parseIntField
 
 -- -----------------------------------------------------------------------------
 -- Under comp - TBC
 
-data IBUnderComp = IBUnderComp 
+data IBUnderComp = IBUnderComp
   { _ucConId :: Int
   , _ucDelta :: Double
   , _ucPrice :: Double
   } deriving Show
 
 parseIBUnderComp :: Parser IBUnderComp
-parseIBUnderComp = 
+parseIBUnderComp =
   IBUnderComp <$>
     parseIntField <*>
     parseSignedDoubleField <*>
@@ -884,29 +854,29 @@ parseIBUnderComp =
 -- -----------------------------------------------------------------------------
 -- Contract details
 
-data IBContractDetails = IBContractDetails 
-  { _cdSummary :: IBContract
-  , _cdMarketName :: String
-  , _cdMinTick :: Double
+data IBContractDetails = IBContractDetails
+  { _cdSummary        :: IBContract
+  , _cdMarketName     :: String
+  , _cdMinTick        :: Double
   , _cdPriceMagnifier :: Int
-  , _cdOrderTypes :: String
+  , _cdOrderTypes     :: String
   , _cdValidExchanges :: String
-  , _cdUnderConId :: Int
-  , _cdLongName :: String
-  , _cdContractMonth :: String
-  , _cdIndustry :: String
-  , _cdCategory :: String
-  , _cdSubCategory :: String
-  , _cdTimeZoneId :: String
-  , _cdTradingHours :: String
-  , _cdLiquidHours :: String
-  , _cdEvRule :: String
-  , _cdEvMultiplier :: Double
-  , _cdSecIds :: IBTagValues
-  } deriving Show 
+  , _cdUnderConId     :: Int
+  , _cdLongName       :: String
+  , _cdContractMonth  :: String
+  , _cdIndustry       :: String
+  , _cdCategory       :: String
+  , _cdSubCategory    :: String
+  , _cdTimeZoneId     :: String
+  , _cdTradingHours   :: String
+  , _cdLiquidHours    :: String
+  , _cdEvRule         :: String
+  , _cdEvMultiplier   :: Double
+  , _cdSecIds         :: IBTagValues
+  } deriving Show
 
 newIBContractDetails :: IBContractDetails
-newIBContractDetails = IBContractDetails 
+newIBContractDetails = IBContractDetails
   { _cdSummary = newIBContract
   , _cdMarketName = ""
   , _cdMinTick = 0
@@ -930,13 +900,13 @@ newIBContractDetails = IBContractDetails
 -- -----------------------------------------------------------------------------
 -- Combo leg
 
-data IBOrderComboLeg = IBOrderComboLeg 
-  { _oclPrice :: Double 
+data IBOrderComboLeg = IBOrderComboLeg
+  { _oclPrice :: Double
   } deriving Show
 
 parseIBOrderComboLeg :: Parser IBOrderComboLeg
-parseIBOrderComboLeg = 
-  IBOrderComboLeg <$> 
+parseIBOrderComboLeg =
+  IBOrderComboLeg <$>
     parseDoubleField'
 
 type IBOrderComboLegs = [IBOrderComboLeg]
@@ -944,202 +914,202 @@ type IBOrderComboLegs = [IBOrderComboLeg]
 -- -----------------------------------------------------------------------------
 -- Order
 
-data IBOrder = IBOrder 
+data IBOrder = IBOrder
   -- Main order fields
-  { _orderId                             :: ByteString                     
-  , _orderClientId                       :: Int 
+  { _orderId                             :: ByteString
+  , _orderClientId                       :: Int
   , _orderPermId                         :: Maybe Int                      -- Populated in open order message (permanent id for subitted and open orders, not used for new order?)
   , _orderAction                         :: IBOrderAction                  -- BUY, SELL, ?
-  , _orderTotalQuantity                  :: Int                           
+  , _orderTotalQuantity                  :: Int
   , _orderType                           :: IBOrderType                    -- e.g. MKT, LMT
-  , _orderLmtPrice                       :: Maybe Double                  
-  , _orderAuxPrice                       :: Maybe Double                  
-  -- Extended order fields                                              
+  , _orderLmtPrice                       :: Maybe Double
+  , _orderAuxPrice                       :: Maybe Double
+  -- Extended order fields
   , _orderTif                            :: IBOrderTimeInForce             -- "Time in Force" - DAY, GTC, etc.
   , _orderOcaGroup                       :: Maybe String                   -- one cancels all group name
   , _orderOcaType                        :: Maybe IBOrderOCAType           -- 1 = CANCEL_WITH_BLOCK, 2 = REDUCE_WITH_BLOCK, 3 = REDUCE_NON_BLOCK
   , _orderRef                            :: String
   , _orderTransmit                       :: Bool                           -- if false, order will be created but not transmited
   , _orderParentId                       :: Maybe Int                      -- Parent order Id, to associate Auto STP or TRAIL orders with the original order.
-  , _orderBlockOrder                     :: Bool                            
-  , _orderSweepToFill                    :: Bool                            
-  , _orderDisplaySize                    :: Maybe Int                      -- TBC       
+  , _orderBlockOrder                     :: Bool
+  , _orderSweepToFill                    :: Bool
+  , _orderDisplaySize                    :: Maybe Int                      -- TBC
   , _orderTriggerMethod                  :: IBOrderTriggerMethod           -- 0=Default, 1=Double_Bid_Ask, 2=Last, 3=Double_Last, 4=Bid_Ask, 7=Last_or_Bid_Ask, 8=Mid-point
-  , _orderOutsideRth                     :: Bool                            
-  , _orderHidden                         :: Bool                            
+  , _orderOutsideRth                     :: Bool
+  , _orderHidden                         :: Bool
   , _orderGoodAfterTime                  :: Maybe String                   -- FORMAT: 20060505 08:00:00 {time zone}
   , _orderGoodTillDate                   :: Maybe String                   -- FORMAT: 20060505 08:00:00 {time zone}
-  , _orderOverridePercentageConstraints  :: Bool                           
+  , _orderOverridePercentageConstraints  :: Bool
   , _orderRule80A                        :: Maybe IBOrderRule80A           -- Individual = 'I', Agency = 'A', AgentOtherMember = 'W', IndividualPTIA = 'J', AgencyPTIA = 'U', AgentOtherMemberPTIA = 'M', IndividualPT = 'K', AgencyPT = 'Y', AgentOtherMemberPT = 'N'
-  , _orderAllOrNone                      :: Bool                            
-  , _orderMinQty                         :: Maybe Int                             
+  , _orderAllOrNone                      :: Bool
+  , _orderMinQty                         :: Maybe Int
   , _orderPercentOffset                  :: Maybe Double                   -- REL orders only; specify the decimal, e.g. .04 not 4
   , _orderTrailStopPrice                 :: Maybe Double                   -- for TRAILLIMIT orders only
   , _orderTrailingPercent                :: Maybe Double                   -- specify the percentage, e.g. 3, not .03
-  -- Financial advisors only                                      
-  , _orderFAGroup                        :: String                   
-  , _orderFAProfile                      :: String                   
-  , _orderFAMethod                       :: String                   
-  , _orderFAPercentage                   :: String                   
-  -- Institutional orders only                                    
+  -- Financial advisors only
+  , _orderFAGroup                        :: String
+  , _orderFAProfile                      :: String
+  , _orderFAMethod                       :: String
+  , _orderFAPercentage                   :: String
+  -- Institutional orders only
   , _orderOpenClose                      :: IBOrderOpenClose               -- O=Open, C=Close
   , _orderOrigin                         :: IBOrderOrigin                  -- 0=Customer, 1=Firm
   , _orderShortSaleSlot                  :: Maybe IBOrderShortSaleSlot     -- 1 if you hold the shares, 2 if they will be delivered from elsewhere.  Only for Action="SSHORT
   , _orderDesignatedLocation             :: Maybe String                   -- set when slot=2 only.
   , _orderExemptCode                     :: Int                            -- TBC
-  -- SMART routing only                                           
-  , _orderDiscretionaryAmt               :: Double                          
-  , _orderETradeOnly                     :: Bool                    
-  , _orderFirmQuoteOnly                  :: Bool                      
-  , _orderNBBOPriceCap                   :: Maybe Double                      
-  , _orderOptOutSmartRouting             :: Bool                          
-  -- Box or vol orders only                                       
+  -- SMART routing only
+  , _orderDiscretionaryAmt               :: Double
+  , _orderETradeOnly                     :: Bool
+  , _orderFirmQuoteOnly                  :: Bool
+  , _orderNBBOPriceCap                   :: Maybe Double
+  , _orderOptOutSmartRouting             :: Bool
+  -- Box or vol orders only
   , _orderAuctionStrategy                :: Maybe IBOrderAuctionStrategy   -- 1=AUCTION_MATCH, 2=AUCTION_IMPROVEMENT, 3=AUCTION_TRANSPARENT
-  -- Box orders only                                              
-  , _orderStartingPrice                  :: Maybe Double                   
-  , _orderStockRefPrice                  :: Maybe Double                   
-  , _orderDelta                          :: Maybe Double                   
-  -- Pegged to stock or vol orders                                
-  , _orderStockRangeLower                :: Maybe Double                   
-  , _orderStockRangeUpper                :: Maybe Double                   
-  -- Volatility orders only                                        
+  -- Box orders only
+  , _orderStartingPrice                  :: Maybe Double
+  , _orderStockRefPrice                  :: Maybe Double
+  , _orderDelta                          :: Maybe Double
+  -- Pegged to stock or vol orders
+  , _orderStockRangeLower                :: Maybe Double
+  , _orderStockRangeUpper                :: Maybe Double
+  -- Volatility orders only
   , _orderVolatility                     :: Maybe Double                   -- Enter percentage not decimal, e.g. 2 not .02
   , _orderVolatilityType                 :: Maybe IBOrderVolatilityType    -- 1=daily, 2=annual
   , _orderContinuousUpdate               :: Maybe Int                      -- TBC
   , _orderReferencePriceType             :: Maybe IBOrderRefPriceType      -- 1=Bid/Ask midpoint, 2 = BidOrAsk
-  , _orderDeltaNeutralOrderType          :: Maybe String                   -- TBC             
-  , _orderDeltaNeutralAuxPrice           :: Maybe Double                    
-  , _orderDeltaNeutralConId              :: Maybe Int                      
-  , _orderDeltaNeutralSettlingFirm       :: Maybe String                   
-  , _orderDeltaNeutralClearingAccount    :: Maybe String                     
-  , _orderDeltaNeutralClearingIntent     :: Maybe String                      
-  , _orderDeltaNeutralOpenClose          :: Maybe IBOrderOpenClose         -- TBC         
-  , _orderDeltaNeutralShortSale          :: Bool                    
-  , _orderDeltaNeutralShortSaleSlot      :: Maybe IBOrderShortSaleSlot     -- TBC                       
-  , _orderDeltaNeutralDesignatedLocation :: Maybe String                       
-  -- Combo orders only                                            
+  , _orderDeltaNeutralOrderType          :: Maybe String                   -- TBC
+  , _orderDeltaNeutralAuxPrice           :: Maybe Double
+  , _orderDeltaNeutralConId              :: Maybe Int
+  , _orderDeltaNeutralSettlingFirm       :: Maybe String
+  , _orderDeltaNeutralClearingAccount    :: Maybe String
+  , _orderDeltaNeutralClearingIntent     :: Maybe String
+  , _orderDeltaNeutralOpenClose          :: Maybe IBOrderOpenClose         -- TBC
+  , _orderDeltaNeutralShortSale          :: Bool
+  , _orderDeltaNeutralShortSaleSlot      :: Maybe IBOrderShortSaleSlot     -- TBC
+  , _orderDeltaNeutralDesignatedLocation :: Maybe String
+  -- Combo orders only
   , _orderBasisPoints                    :: Maybe Double                   -- TBC. EFP orders only, download only
   , _orderBasisPointsType                :: Maybe Int                      -- TBC. EFP orders only, download only
-  -- Scale orders only                                            
-  , _orderScaleInitLevelSize             :: Maybe Int                      
-  , _orderScaleSubsLevelSize             :: Maybe Int                      
-  , _orderScalePriceIncrement            :: Maybe Double                   
-  , _orderScalePriceAdjustValue          :: Maybe Double                   
-  , _orderScalePriceAdjustInterval       :: Maybe Int                        
-  , _orderScaleProfitOffset              :: Maybe Double                   
-  , _orderScaleAutoReset                 :: Bool                    
-  , _orderScaleInitPosition              :: Maybe Int                      
-  , _orderScaleInitFillQty               :: Maybe Int                      
-  , _orderScaleRandomPercent             :: Bool                    
-  -- Hedge orders only                                            
+  -- Scale orders only
+  , _orderScaleInitLevelSize             :: Maybe Int
+  , _orderScaleSubsLevelSize             :: Maybe Int
+  , _orderScalePriceIncrement            :: Maybe Double
+  , _orderScalePriceAdjustValue          :: Maybe Double
+  , _orderScalePriceAdjustInterval       :: Maybe Int
+  , _orderScaleProfitOffset              :: Maybe Double
+  , _orderScaleAutoReset                 :: Bool
+  , _orderScaleInitPosition              :: Maybe Int
+  , _orderScaleInitFillQty               :: Maybe Int
+  , _orderScaleRandomPercent             :: Bool
+  -- Hedge orders only
   , _orderHedgeType                      :: Maybe IBOrderHedgeType         -- 'D' - delta, 'B' - beta, 'F' - FX, 'P' - pair
   , _orderHedgeParam                     :: Maybe String                   -- TBC. beta value for beta hedge (in range 0-1), ratio for pair hedge
-  -- Clearing info                                                
+  -- Clearing info
   , _orderAccount                        :: String                         -- IB account
-  , _orderSettlingFirm                   :: String                   
+  , _orderSettlingFirm                   :: String
   , _orderClearingAccount                :: String                         -- True beneficiary of the order
   , _orderClearingIntent                 :: String                         -- "" (Default), "IB", "Away", "PTA" (PostTrade)
-  -- Algo orders only                                             
-  , _orderAlgoStrategy                   :: Maybe String                   
-  , _orderAlgoParams                     :: IBTagValues              
-  -- What-if                                                      
-  , _orderWhatIf                         :: Bool                    
-  -- Not Held                                                     
-  , _orderNotHeld                        :: Bool                    
-  -- Smart combo routing params                                   
-  , _orderSmartComboRoutingParams        :: IBTagValues             
-  -- Order combo legs                                             
-  , _orderComboLegs                      :: IBOrderComboLegs 
+  -- Algo orders only
+  , _orderAlgoStrategy                   :: Maybe String
+  , _orderAlgoParams                     :: IBTagValues
+  -- What-if
+  , _orderWhatIf                         :: Bool
+  -- Not Held
+  , _orderNotHeld                        :: Bool
+  -- Smart combo routing params
+  , _orderSmartComboRoutingParams        :: IBTagValues
+  -- Order combo legs
+  , _orderComboLegs                      :: IBOrderComboLegs
   } deriving Show
 
 newIBOrder :: IBOrder
-newIBOrder = IBOrder 
-  { _orderId                             = ""                    
-  , _orderClientId                       = 0                    
-  , _orderPermId                         = Nothing              
-  , _orderAction                         = Buy          
-  , _orderTotalQuantity                  = 0                    
-  , _orderType                           = Market            
-  , _orderLmtPrice                       = Nothing           
-  , _orderAuxPrice                       = Nothing           
-  , _orderTif                            = Day    
-  , _orderOcaGroup                       = Nothing                 
+newIBOrder = IBOrder
+  { _orderId                             = ""
+  , _orderClientId                       = 0
+  , _orderPermId                         = Nothing
+  , _orderAction                         = Buy
+  , _orderTotalQuantity                  = 0
+  , _orderType                           = Market
+  , _orderLmtPrice                       = Nothing
+  , _orderAuxPrice                       = Nothing
+  , _orderTif                            = Day
+  , _orderOcaGroup                       = Nothing
   , _orderOcaType                        = Nothing
-  , _orderRef                            = ""                 
-  , _orderTransmit                       = False                   
-  , _orderParentId                       = Nothing              
-  , _orderBlockOrder                     = False                   
-  , _orderSweepToFill                    = False                   
-  , _orderDisplaySize                    = Nothing              
-  , _orderTriggerMethod                  = TriggerDefault       
-  , _orderOutsideRth                     = False                   
-  , _orderHidden                         = False                   
-  , _orderGoodAfterTime                  = Nothing           
-  , _orderGoodTillDate                   = Nothing           
-  , _orderOverridePercentageConstraints  = False                   
-  , _orderRule80A                        = Nothing        
-  , _orderAllOrNone                      = False                   
-  , _orderMinQty                         = Nothing              
-  , _orderPercentOffset                  = Nothing           
-  , _orderTrailStopPrice                 = Nothing           
-  , _orderTrailingPercent                = Nothing           
-  , _orderFAGroup                        = ""                 
-  , _orderFAProfile                      = ""                 
-  , _orderFAMethod                       = ""                 
-  , _orderFAPercentage                   = ""                 
-  , _orderOpenClose                      = OrderOpen            
-  , _orderOrigin                         = Customer               
-  , _orderShortSaleSlot                  = Nothing  
-  , _orderDesignatedLocation             = Nothing           
-  , _orderExemptCode                     = -1                    
-  , _orderDiscretionaryAmt               = 0                 
-  , _orderETradeOnly                     = False                   
-  , _orderFirmQuoteOnly                  = False                   
-  , _orderNBBOPriceCap                   = Nothing           
-  , _orderOptOutSmartRouting             = False                   
+  , _orderRef                            = ""
+  , _orderTransmit                       = False
+  , _orderParentId                       = Nothing
+  , _orderBlockOrder                     = False
+  , _orderSweepToFill                    = False
+  , _orderDisplaySize                    = Nothing
+  , _orderTriggerMethod                  = TriggerDefault
+  , _orderOutsideRth                     = False
+  , _orderHidden                         = False
+  , _orderGoodAfterTime                  = Nothing
+  , _orderGoodTillDate                   = Nothing
+  , _orderOverridePercentageConstraints  = False
+  , _orderRule80A                        = Nothing
+  , _orderAllOrNone                      = False
+  , _orderMinQty                         = Nothing
+  , _orderPercentOffset                  = Nothing
+  , _orderTrailStopPrice                 = Nothing
+  , _orderTrailingPercent                = Nothing
+  , _orderFAGroup                        = ""
+  , _orderFAProfile                      = ""
+  , _orderFAMethod                       = ""
+  , _orderFAPercentage                   = ""
+  , _orderOpenClose                      = OrderOpen
+  , _orderOrigin                         = Customer
+  , _orderShortSaleSlot                  = Nothing
+  , _orderDesignatedLocation             = Nothing
+  , _orderExemptCode                     = -1
+  , _orderDiscretionaryAmt               = 0
+  , _orderETradeOnly                     = False
+  , _orderFirmQuoteOnly                  = False
+  , _orderNBBOPriceCap                   = Nothing
+  , _orderOptOutSmartRouting             = False
   , _orderAuctionStrategy                = Nothing
-  , _orderStartingPrice                  = Nothing           
-  , _orderStockRefPrice                  = Nothing           
-  , _orderDelta                          = Nothing           
-  , _orderStockRangeLower                = Nothing           
-  , _orderStockRangeUpper                = Nothing           
-  , _orderVolatility                     = Nothing           
-  , _orderVolatilityType                 = Nothing 
-  , _orderContinuousUpdate               = Nothing              
-  , _orderReferencePriceType             = Nothing   
-  , _orderDeltaNeutralOrderType          = Nothing           
-  , _orderDeltaNeutralAuxPrice           = Nothing           
-  , _orderDeltaNeutralConId              = Nothing              
-  , _orderDeltaNeutralSettlingFirm       = Nothing           
-  , _orderDeltaNeutralClearingAccount    = Nothing           
-  , _orderDeltaNeutralClearingIntent     = Nothing           
-  , _orderDeltaNeutralOpenClose          = Nothing           
-  , _orderDeltaNeutralShortSale          = False                   
-  , _orderDeltaNeutralShortSaleSlot      = Nothing  
-  , _orderDeltaNeutralDesignatedLocation = Nothing           
-  , _orderBasisPoints                    = Nothing           
-  , _orderBasisPointsType                = Nothing              
-  , _orderScaleInitLevelSize             = Nothing              
-  , _orderScaleSubsLevelSize             = Nothing              
-  , _orderScalePriceIncrement            = Nothing           
-  , _orderScalePriceAdjustValue          = Nothing           
-  , _orderScalePriceAdjustInterval       = Nothing              
-  , _orderScaleProfitOffset              = Nothing           
-  , _orderScaleAutoReset                 = False                   
-  , _orderScaleInitPosition              = Nothing              
-  , _orderScaleInitFillQty               = Nothing              
-  , _orderScaleRandomPercent             = False                   
-  , _orderHedgeType                      = Nothing      
-  , _orderHedgeParam                     = Nothing           
-  , _orderAccount                        = ""                 
-  , _orderSettlingFirm                   = ""                 
-  , _orderClearingAccount                = ""                 
-  , _orderClearingIntent                 = ""                 
-  , _orderAlgoStrategy                   = Nothing           
-  , _orderAlgoParams                     = Map.empty            
-  , _orderWhatIf                         = False                   
-  , _orderNotHeld                        = False                   
-  , _orderSmartComboRoutingParams        = Map.empty            
+  , _orderStartingPrice                  = Nothing
+  , _orderStockRefPrice                  = Nothing
+  , _orderDelta                          = Nothing
+  , _orderStockRangeLower                = Nothing
+  , _orderStockRangeUpper                = Nothing
+  , _orderVolatility                     = Nothing
+  , _orderVolatilityType                 = Nothing
+  , _orderContinuousUpdate               = Nothing
+  , _orderReferencePriceType             = Nothing
+  , _orderDeltaNeutralOrderType          = Nothing
+  , _orderDeltaNeutralAuxPrice           = Nothing
+  , _orderDeltaNeutralConId              = Nothing
+  , _orderDeltaNeutralSettlingFirm       = Nothing
+  , _orderDeltaNeutralClearingAccount    = Nothing
+  , _orderDeltaNeutralClearingIntent     = Nothing
+  , _orderDeltaNeutralOpenClose          = Nothing
+  , _orderDeltaNeutralShortSale          = False
+  , _orderDeltaNeutralShortSaleSlot      = Nothing
+  , _orderDeltaNeutralDesignatedLocation = Nothing
+  , _orderBasisPoints                    = Nothing
+  , _orderBasisPointsType                = Nothing
+  , _orderScaleInitLevelSize             = Nothing
+  , _orderScaleSubsLevelSize             = Nothing
+  , _orderScalePriceIncrement            = Nothing
+  , _orderScalePriceAdjustValue          = Nothing
+  , _orderScalePriceAdjustInterval       = Nothing
+  , _orderScaleProfitOffset              = Nothing
+  , _orderScaleAutoReset                 = False
+  , _orderScaleInitPosition              = Nothing
+  , _orderScaleInitFillQty               = Nothing
+  , _orderScaleRandomPercent             = False
+  , _orderHedgeType                      = Nothing
+  , _orderHedgeParam                     = Nothing
+  , _orderAccount                        = ""
+  , _orderSettlingFirm                   = ""
+  , _orderClearingAccount                = ""
+  , _orderClearingIntent                 = ""
+  , _orderAlgoStrategy                   = Nothing
+  , _orderAlgoParams                     = Map.empty
+  , _orderWhatIf                         = False
+  , _orderNotHeld                        = False
+  , _orderSmartComboRoutingParams        = Map.empty
   , _orderComboLegs                      = []
   }
 
@@ -1173,7 +1143,7 @@ parseIBOrder contract = do
   orderPercentOffset' <- parseMaybeDoubleField
   orderSettlingFirm' <- parseStringField
   orderShortSaleSlot' <- parseMaybe $ parseField parseIBOrderShortSaleSlot
-  orderDesignatedLocation' <- parseMaybeStringField  
+  orderDesignatedLocation' <- parseMaybeStringField
   orderExemptCode' <- parseSignedIntField
   orderAuctionStrategy' <- parseMaybe $ parseField parseIBOrderAuctionStrategy
   orderStartingPrice' <- parseMaybeDoubleField
@@ -1212,7 +1182,7 @@ parseIBOrder contract = do
   orderTrailingPercent' <- parseMaybeDoubleField
   orderBasisPoints' <- parseMaybeDoubleField
   orderBasisPointsType' <- parseMaybeIntField
-  contract' <- parseIBContractComboLegs contract 
+  contract' <- parseIBContractComboLegs contract
   orderComboLegsCount' <- parseIntField
   orderComboLegs' <- replicateM orderComboLegsCount' parseIBOrderComboLeg
   orderSmartComboRoutingParamsCount' <- parseIntField
@@ -1220,7 +1190,7 @@ parseIBOrder contract = do
   orderScaleInitLevelSize' <- parseMaybeIntField
   orderScaleSubsLevelSize' <- parseMaybeIntField
   orderScalePriceIncrement' <- parseMaybeDoubleField
-  let scale' = fmap (>0) orderScalePriceIncrement' == Just True 
+  let scale' = fmap (>0) orderScalePriceIncrement' == Just True
   orderScalePriceAdjustValue' <- if scale' then parseMaybeDoubleField else return $ _orderScalePriceAdjustValue order
   orderScalePriceAdjustInterval' <- if scale' then parseMaybeIntField else return $ _orderScalePriceAdjustInterval order
   orderScaleProfitOffset' <- if scale' then parseMaybeDoubleField else return $ _orderScaleProfitOffset order
@@ -1234,12 +1204,12 @@ parseIBOrder contract = do
   orderClearingAccount' <- parseStringField
   orderClearingIntent' <- parseStringField
   orderNotHeld' <- parseBoolBinaryField
-  contract'' <- parseIBContractUnderComp contract' 
+  contract'' <- parseIBContractUnderComp contract'
   orderAlgoStrategy' <- parseMaybeStringField
   orderAlgoParams' <- if isJust orderAlgoStrategy' then parseTagValues else return $ _orderAlgoParams order
   orderWhatIf' <- parseBoolBinaryField
   return (
-    order 
+    order
       { _orderClientId                       = orderClientId'
       , _orderPermId                         = orderPermId'
       , _orderAction                         = orderAction'
@@ -1263,7 +1233,7 @@ parseIBOrder contract = do
       , _orderGoodTillDate                   = orderGoodTillDate'
        --orderOverridePercentageConstraints  = orderOverridePercentageConstraints'
       , _orderRule80A                        = orderRule80A'
-      , _orderAllOrNone                      = orderAllOrNone'                     
+      , _orderAllOrNone                      = orderAllOrNone'
       , _orderMinQty                         = orderMinQty'
       , _orderPercentOffset                  = orderPercentOffset'
       , _orderTrailStopPrice                 = orderTrailStopPrice'
@@ -1333,19 +1303,19 @@ parseIBOrder contract = do
 -- Order state
 
 data IBOrderState = IBOrderState
-  { _osStatus :: IBOrderStatus
-  , _osInitMargin :: String
-  , _osMaintMargin :: String
-  , _osEquityWithLoan :: String
-  , _osCommission :: Double
-  , _osMinCommission :: Double
-  , _osMaxCommission :: Double
+  { _osStatus             :: IBOrderStatus
+  , _osInitMargin         :: String
+  , _osMaintMargin        :: String
+  , _osEquityWithLoan     :: String
+  , _osCommission         :: Double
+  , _osMinCommission      :: Double
+  , _osMaxCommission      :: Double
   , _osCommissionCurrency :: String
-  , _osWarningText :: String
+  , _osWarningText        :: String
   } deriving Show
 
 newIBOrderState :: IBOrderState
-newIBOrderState = IBOrderState 
+newIBOrderState = IBOrderState
   { _osStatus = Inactive
   , _osInitMargin = ""
   , _osMaintMargin = ""
@@ -1358,13 +1328,13 @@ newIBOrderState = IBOrderState
   }
 
 parseIBOrderState :: Parser IBOrderState
-parseIBOrderState = 
+parseIBOrderState =
   IBOrderState <$>
     parseField parseIBOrderStatus <*>
     parseStringField <*>
     parseStringField <*>
     parseStringField <*>
-    parseDoubleField' <*> 
+    parseDoubleField' <*>
     parseDoubleField' <*>
     parseDoubleField' <*>
     parseStringField <*>
@@ -1373,65 +1343,65 @@ parseIBOrderState =
 -- -----------------------------------------------------------------------------
 -- Execution
 
-data IBExecution = IBExecution 
-  { _execOrderId      :: ByteString        
-  , _execClientId     :: Int     
+data IBExecution = IBExecution
+  { _execOrderId      :: ByteString
+  , _execClientId     :: Int
   , _execId           :: ByteString
   , _execTime         :: LocalTime --String
-  , _execAcctNumber   :: String     
-  , _execExchange     :: String   
+  , _execAcctNumber   :: String
+  , _execExchange     :: String
   , _execSide         :: IBExecutionSide --String
-  , _execShares       :: Int  
+  , _execShares       :: Int
   , _execPrice        :: Double
-  , _execPermId       :: Int  
-  , _execLiquidation  :: Int         
-  , _execCumQty       :: Int    
+  , _execPermId       :: Int
+  , _execLiquidation  :: Int
+  , _execCumQty       :: Int
   , _execAvgPrice     :: Double
-  , _execOrderRef     :: String  
-  , _execEvRule       :: String 
-  , _execEvMultiplier :: Double       
+  , _execOrderRef     :: String
+  , _execEvRule       :: String
+  , _execEvMultiplier :: Double
   } deriving Show
 
 newIBExecution :: IBExecution
-newIBExecution = IBExecution 
-  { _execOrderId      = ""    
+newIBExecution = IBExecution
+  { _execOrderId      = ""
   , _execClientId     = 0
-  , _execId           = "" 
+  , _execId           = ""
   , _execTime         = zeroTimeLocal
-  , _execAcctNumber   = ""     
-  , _execExchange     = ""   
+  , _execAcctNumber   = ""
+  , _execExchange     = ""
   , _execSide         = Bought
-  , _execShares       = 0    
+  , _execShares       = 0
   , _execPrice        = 0.0
-  , _execPermId       = 0   
-  , _execLiquidation  = 0         
-  , _execCumQty       = 0    
-  , _execAvgPrice     = 0.0   
-  , _execOrderRef     = ""  
-  , _execEvRule       = "" 
-  , _execEvMultiplier = 0.0 
+  , _execPermId       = 0
+  , _execLiquidation  = 0
+  , _execCumQty       = 0
+  , _execAvgPrice     = 0.0
+  , _execOrderRef     = ""
+  , _execEvRule       = ""
+  , _execEvMultiplier = 0.0
   }
 
 -- -----------------------------------------------------------------------------
 -- Commission report
 
-data IBCommissionReport = IBCommissionReport 
-  { _crExecId :: ByteString
-  , _crCommission :: Double
-  , _crCurrency :: Currency
-  , _crRealisedPNL :: Double
-  , _crYield :: Double
-  , _crYieldRedemptionDate :: Int 
+data IBCommissionReport = IBCommissionReport
+  { _crExecId              :: ByteString
+  , _crCommission          :: Double
+  , _crCurrency            :: Currency
+  , _crRealisedPNL         :: Double
+  , _crYield               :: Double
+  , _crYieldRedemptionDate :: Int
   } deriving Show
 
 newIBCommissionReport :: IBCommissionReport
-newIBCommissionReport = IBCommissionReport 
+newIBCommissionReport = IBCommissionReport
   { _crExecId = ""
   , _crCommission = 0.0
   , _crCurrency = "USD"
   , _crRealisedPNL = 0.0
   , _crYield = 0.0
-  , _crYieldRedemptionDate = 0  
+  , _crYieldRedemptionDate = 0
   }
 
 parseIBCommissionReport :: Parser IBCommissionReport
@@ -1447,25 +1417,25 @@ parseIBCommissionReport =
 -- -----------------------------------------------------------------------------
 -- Execution filter
 
-data IBExecutionFilter = IBExecutionFilter 
+data IBExecutionFilter = IBExecutionFilter
   { _efClientId :: Int             -- zero means no filtering on this field
   , _efAcctCode :: String
-  , _efTime :: String
-  , _efSymbol :: String
-  , _efSecType :: IBSecurityType -- String, TODO: Maybe? Check if blank means no filter
+  , _efTime     :: String
+  , _efSymbol   :: String
+  , _efSecType  :: IBSecurityType -- String, TODO: Maybe? Check if blank means no filter
   , _efExchange :: String
-  , _efSide :: String --TODO: enum?
+  , _efSide     :: String --TODO: enum?
   } deriving Show
 
 newIBExecutionFilter :: IBExecutionFilter
-newIBExecutionFilter = IBExecutionFilter 
+newIBExecutionFilter = IBExecutionFilter
   { _efClientId = 0              -- zero means no filtering on this field
   , _efAcctCode = ""
   , _efTime = ""
   , _efSymbol = ""
-  , _efSecType = IBFuture 
+  , _efSecType = IBFuture
   , _efExchange = ""
-  , _efSide = ""  
+  , _efSide = ""
   }
 
 -- -----------------------------------------------------------------------------
