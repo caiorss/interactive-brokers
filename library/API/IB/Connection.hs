@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards    #-}
 module API.IB.Connection (
     connect
+    , disconnect
     , IBConnection(..)
     , Config(..)
     , IBException(..)
@@ -91,6 +92,10 @@ connect cfg = do
 
     return $ IBConnection cfg s acs sv st stzd stz oid
 
+-- | Disconnect the connection. Closes the underlying socket.
+disconnect :: IBConnection -> IO ()
+disconnect con = S.closeSock (socket con)
+
 -- | Send a request.
 send :: IBConnection -> IBRequest -> IO ()
 send con r@PlaceOrder{..} = S.send (socket con) (createMsg (serverVersion con) r) >> atomicModifyIORef (nextOrderId con) (\oid -> (oid + 1, ()))
@@ -110,5 +115,5 @@ sendRecv :: IBConnection -> IBRequest -> IO IBResponse
 sendRecv con r = do
     send con r
     bs <- recv con
-    r <- A.parseWith (recv con) parseIBResponse bs
-    maybe (throwIO ParserFailed) return $ A.maybeResult r
+    response <- A.parseWith (recv con) parseIBResponse bs
+    maybe (throwIO ParserFailed) return $ A.maybeResult response
